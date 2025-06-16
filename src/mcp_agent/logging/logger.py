@@ -82,25 +82,26 @@ class Logger:
         context: EventContext | None,
         data: dict,
     ):
-        """Create and emit an event."""
-        # Only create or modify context with session_id if we have one
-        if self.session_id:
-            # If no context was provided, create one with our session_id
-            if context is None:
-                context = EventContext(session_id=self.session_id)
-            # If context exists but has no session_id, add our session_id
-            elif context.session_id is None:
-                context.session_id = self.session_id
+        pass
+        # """Create and emit an event."""
+        # # Only create or modify context with session_id if we have one
+        # if self.session_id:
+        #     # If no context was provided, create one with our session_id
+        #     if context is None:
+        #         context = EventContext(session_id=self.session_id)
+        #     # If context exists but has no session_id, add our session_id
+        #     elif context.session_id is None:
+        #         context.session_id = self.session_id
 
-        evt = Event(
-            type=etype,
-            name=ename,
-            namespace=self.namespace,
-            message=message,
-            context=context,
-            data=data,
-        )
-        self._emit_event(evt)
+        # evt = Event(
+        #     type=etype,
+        #     name=ename,
+        #     namespace=self.namespace,
+        #     message=message,
+        #     context=context,
+        #     data=data,
+        # )
+        # self._emit_event(evt)
 
     def debug(
         self,

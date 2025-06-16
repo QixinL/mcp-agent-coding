@@ -11,44 +11,50 @@ from mcp_agent.workflows.llm.augmented_llm_google import GoogleAugmentedLLM
 
 # Settings can either be specified programmatically,
 # or loaded from mcp_agent.config.yaml/mcp_agent.secrets.yaml
-app = MCPApp(name="mcp_basic_agent") 
+app = MCPApp(name="mcp_basic_agent")
 
 async def example_usage():
     async with app.run() as agent_app:
         logger = agent_app.logger
         context = agent_app.context
 
-        logger.info("Current config:", data=context.config.model_dump())
+        # logger.info("Current config:", data=context.config.model_dump())
 
         # Add the current directory to the filesystem server's args
         context.config.mcp.servers["filesystem"].args.extend([os.getcwd()])
 
         finder_agent = Agent(
             name="finder",
-            instruction="""You are an agent with access to the filesystem, 
-            as well as the ability to fetch URLs. Your job is to identify 
-            the closest match to a user's request, make the appropriate tool calls, 
-            and return the URI and CONTENTS of the closest match.""",
-            server_names=["fetch", "filesystem"],
+            instruction="""You are an agent with access to the filesystem.
+            Your job is to search the filesystem for the file that match a user's request.
+            Return the location of the file relative to the current working directory.
+            Ensure that:
+            - The returned file path is relative to the current working directory.""",
+            server_names=["filesystem"],
         )
 
         coder_agent = Agent(
             name="coder",
-            instruction="""Your job is to write code that solves the user's request.""",
-            server_names=["filesystem"],
+            instruction="""Your job is to determine if code is needed to solve the user's request.
+            If code is needed, write python code to solve the user's request and return the code in the 
+            code section of the JSON formatting that will be provided.
+            Ensure that:
+            - The code can be executed directly in the current working directory and does not have ```python headers and footers.
+            - The code has no syntax or runtime errors.
+            After, return the path to the python file relative to the current working directory.""",
+            # server_names=[],
         )
 
         executor_agent = Agent(
             name="executor",
-            instruction=""""Your job is to execute code """,
-            server_names=["fetch"],
+            instruction="""Determine if the code has been properly executed and return the output/error.""",
+            server_names=["filesystem"],
         )
 
-        task = """How many people upvoted the question in: https://stackoverflow.com/questions/76760600/how-to-fix-pydantics-deprecation-warning-about-using-model-dict-method
-        Save the number to results.txt in the current working directory."""
+        task = """Obtain the number of lines in the file short_story.md"""
 
         orchestrator = Orchestrator(
-            augumented_llm=OpenAIAugmentedLLM,
+            augumented_llm=GoogleAugmentedLLM,
             available_agents=[
                 finder_agent,
                 coder_agent,
