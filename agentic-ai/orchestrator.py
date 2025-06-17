@@ -1,6 +1,7 @@
 from mcp_agent.agents.agent import Agent
 from pydantic import BaseModel, Field
 from langchain.output_parsers import PydanticOutputParser
+from typing import Optional
 
 #Planning agent
 class PlanStep(BaseModel):
@@ -17,8 +18,8 @@ class Schema(BaseModel):
     summary: str = Field(..., description="A short summary of what was accomplished and the key results of this step")
 
 class OrchestratorSchema(BaseModel):
-    agent:  str | None = Field(..., description="The name of the agent that should perform the next step")
-    instruction: str | None = Field(..., description="The instruction for the agent to perform the next step")
+    agent:  Optional[str] = Field(..., description="The name of the agent that should perform the next step")
+    instruction: Optional[str] = Field(..., description="The instruction for the agent to perform the next step")
     finished: bool = Field(..., description="True if the orchestration is complete or there is an error, False if the orchestration should continue")
 
 
