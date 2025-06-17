@@ -45,8 +45,8 @@ class Orchestrator():
             "coder": PydanticOutputParser(pydantic_object=CodingSchema),
             "executor": PydanticOutputParser(pydantic_object=ExecutionSchema),
         }
-        self.file_path = ""
         self.csv_path = ""
+        self.py_path = ""
     
     #TODO put into utils
     def create_python_file(self, code, file_name):
@@ -59,6 +59,25 @@ class Orchestrator():
         print(f"Python file '{file_name}' created successfully.")
         return file_name
     
+    #TODO put into utils
+    def execute_python_file(self, file_path):
+        """
+        Execute a Python file with the given file name.
+        The file should be in the current working directory.
+        """
+        import subprocess
+        try:
+            result = subprocess.run(["python", file_path], capture_output=True, text=True)
+            print(f"Executed Python file '{file_path}' successfully.")
+            print(f"Result: {result.stdout}")
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                return f"Error executing file: {result.stderr}"
+        except Exception as e:
+            print(f"Error executing Python file '{file_path}': {e}")
+            return str(e)
+
     async def llm_factory(self, agent):
         return await agent.attach_llm(self.augmented_llm)
 
@@ -126,6 +145,11 @@ class Orchestrator():
             
                 #update the instruction with the context from the previous agent's output
                 instruction = await orchestrator_llm.generate_str(prompt)
+
+            # Temporary solution, look into function integration in agents later
+            if agent_name == "executor":
+                instruction += f"\nResult of the python file execution: {self.execute_python_file(self.py_path)}"
+
             print(f"\nExecuting step for agent: {agent_name} with instruction: {instruction}")
 
 
@@ -150,11 +174,13 @@ class Orchestrator():
 
             result_json = result.model_dump()
             
+            # Hard coded obtaining of file paths for finder and coder agents
+            # Temporary solution until we have a more robust way to integrate functions into the agents
             if agent_name == "finder":
-                self.file_path = result_json.get("path", "")
+                self.csv_path = result_json.get("path", "") #not used for now
             elif agent_name == "coder":
-                self.csv_path = result_json.get("path", "")
-                self.create_python_file(result_json.get("code", ""), self.csv_path)
+                self.py_path = result_json.get("path", "")
+                self.create_python_file(result_json.get("code", ""), self.py_path)
 
 
 
@@ -168,8 +194,3 @@ class Orchestrator():
         #test run orchestrate_plan
         await self.orchestrate_plan(user_query, plan)
         print("Orchestration complete.")
-        
-
-
-
-        
