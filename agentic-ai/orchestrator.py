@@ -19,13 +19,11 @@ class Schema(BaseModel):
 
 
 class OrchestratorSchema(BaseModel):
+    finished: bool = Field(..., description="True if the orchestration is complete or there is an error, False if the orchestration should continue")
     agent:  Optional[str] = Field(None, description="The name of the agent that should perform the next step")
     instruction: Optional[str] = Field(None, description="The instruction for the agent to perform the next step")
-    finished: bool = Field(..., description="True if the orchestration is complete or there is an error, False if the orchestration should continue")
+    context: Optional[str] = Field(None, description="A summary of the most important information gathered from the last agent's output. Use less than 10 words")
 
-
-#I want to create a function calling agent that will take in functions during init and will call them when needed
-#first create the schema for the function calling agent
 
 class FunctionCall(BaseModel):
     function_name: str = Field(..., description="The name of the function to call")
@@ -62,7 +60,7 @@ class Orchestrator():
 
         self.parsers = {
             "planner": PydanticOutputParser(pydantic_object=Plan),
-            "orchestrator": PydanticOutputParser(pydantic_object=PlanStep),
+            "orchestrator": PydanticOutputParser(pydantic_object=OrchestratorSchema),
             "general": PydanticOutputParser(pydantic_object=Schema),
             "function_call": PydanticOutputParser(pydantic_object=FunctionCall),
         }
@@ -81,7 +79,8 @@ class Orchestrator():
             instruction="""
             You are an expert planner. Given an objective task and a list of MCP servers (which are collections of tools)
             or Agents (which are collections of servers), your job is to break down the objective into a series of steps,
-            which can be performed by LLMs with access to the servers or agents. Make sure to use the function_calling_agent when appropriate.
+            which can be performed by LLMs with access to the servers or agents. 
+            Review the functions available to the function_calling_agent and use it when appropiate.
             """,
         )
         planning_llm = await self.llm_factory(planning_agent)
@@ -108,7 +107,8 @@ class Orchestrator():
             name="orchestrator",
             instruction="""
             You are an orchestrator agent. Your job is to oversee the execution of the plan.
-            Review the output of each agent and update the instructions for the next agent if needed.
+            Determine if the plan is complete. If not, review the output of each agent and update the instructions for the next agent if needed.
+
             """,
         )
 
@@ -117,10 +117,13 @@ class Orchestrator():
         previous_instruction = None
 
         # Plan loop
-        while True:
+        max_steps = 20  # Limit the number of steps to prevent infinite loops
+
+        for _ in range(max_steps):
             # have the orchestrator agent review the plan and update the instructions if needed
             orchestrator_llm = await self.llm_factory(orchestrator_agent)
             format_instructions = self.parsers["orchestrator"].get_format_instructions()
+
 
             prompt = f"""
             current task: {user_query}
@@ -133,16 +136,18 @@ class Orchestrator():
             previous agent summary: {result_json.get("summary") if result_json else "N/A"}
             
             Return in a JSON object with the following fields:
-            - finished: True if the orchestration is complete or there is an error, False if the orchestration should continue
+            - finished: True if the orchestration is complete, False if the orchestration should continue
             - agent: the name of the agent that should perform the next step (review the plan when deciding this agent)
+            here is the list of available agents: {self.available_agents.keys()} and the functions available to the function calling agent: {self.available_functions}
             - instruction: the instruction for the agent to perform the next step (Answer to the user query if finished)
+
             {format_instructions}
 
             Ensure that:
-            - The instruction has all the necessary context to perform its task.
+            - The instruction has all the necessary context to perform its task as the agents do not have access to previous steps or any history.
             - The instruction is as concise as possible.
             - Provide the exact paths obtained from the previous agent's output if it is relevant to the current agent.
-            - Double check the result answers the user query before returning finished: True.
+            - The user query has been fully addressed before finishing the orchestration.
             """
             
             raw = await orchestrator_llm.generate_str(prompt)
@@ -192,6 +197,7 @@ class Orchestrator():
                     if func.__name__ == function_name:
                         result_json["result"] = func(**arguments)
                         result_json["summary"] = f"Executed function {function_name} with arguments {arguments}"
+                        print(f"Function {function_name} executed with result: {result_json['result']}")
                         break
             else:
                 parser = self.parsers["general"]

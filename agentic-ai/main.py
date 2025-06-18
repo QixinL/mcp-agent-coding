@@ -9,6 +9,8 @@ from orchestrator import Orchestrator
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from mcp_agent.workflows.llm.augmented_llm_google import GoogleAugmentedLLM
 
+import sys
+
 # Settings can either be specified programmatically,
 # or loaded from mcp_agent.config.yaml/mcp_agent.secrets.yaml
 app = MCPApp(name="mcp_basic_agent")
@@ -32,9 +34,7 @@ def execute_python_file(file_name):
     """
     import subprocess
     try:
-        result = subprocess.run(["python", file_name], capture_output=True, text=True)
-        print(f"Executed Python file '{file_name}' successfully.")
-        print(f"Result: {result.stdout}")
+        result = subprocess.run([sys.executable, file_name], capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout
         else:
@@ -42,6 +42,22 @@ def execute_python_file(file_name):
     except Exception as e:
         print(f"Error executing Python file '{file_name}': {e}")
         return str(e)
+    
+def obtain_csv_header(file_name):
+    """
+    Obtain the header of a CSV file.
+    This function assumes that the file is in the current working directory.
+    """
+    import csv
+    import os
+
+    if not os.path.exists(file_name):
+        return f"File '{file_name}' does not exist."
+
+    with open(file_name, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        header = next(reader)  # Get the first row as header
+        return header
 
 #TODO put into utils
 #def obtain header
@@ -67,7 +83,6 @@ async def example_usage():
         coder_agent = Agent(
             name="coder",
             instruction=""" Output a JSON object with the following fields:
-            status: "success" or "error"
             result: the code that solves the user's request (you need to generate the code)
             summary: a concise summary of the code and its purpose
             Ensure that:
@@ -85,22 +100,24 @@ async def example_usage():
             Ensure that the output follows the JSON format that will be provided.""",
         )
 
-        task = """Obtain the number of lines in the file short_story.md"""
+        task = """What is the number of items sold for more than $500 in electronic_sales.csv?"""
 
         orchestrator = Orchestrator(
             augumented_llm=GoogleAugmentedLLM,
             available_agents=[
                 finder_agent,
                 # summary_agent,
-                coder_agent,
+                # coder_agent,
             ],
             available_functions=[
                 create_python_file,
                 execute_python_file,
+                obtain_csv_header,
             ],
         )
 
         result = await orchestrator.generate_str(user_query=task)
+
 
 if __name__ == "__main__":
     start = time.time()
@@ -109,3 +126,6 @@ if __name__ == "__main__":
     t = end - start
 
     print(f"Total run time: {t:.2f}s")
+    
+    sys.stdout = open(os.devnull, 'w')  # Suppress stdout
+    sys.stderr = open(os.devnull, 'w')  # Suppress stderr
