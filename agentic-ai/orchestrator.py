@@ -32,14 +32,13 @@ class FunctionCall(BaseModel):
 
 
 class Orchestrator():
-    def __init__(self, augumented_llm, available_agents, available_functions=[]):
+    def __init__(self, augumented_llm, available_agents=[], available_functions=[]):
         # The augmented_llm should be an instance of OpenAIAugmentedLLM or GoogleAugmentedLLM
         self.augmented_llm = augumented_llm
         # The available_agents should be a dictionary or list of Agent instances
-        self.available_agents = {agent.name: agent for agent in available_agents}
+        
         self.available_functions = available_functions
         exact_params = [f"{func.__name__}: {inspect.signature(func)}" for func in self.available_functions]
-        print(f"Exact_params: {exact_params}")
 
         #create the function calling agent
         function_calling_agent = Agent(
@@ -54,8 +53,8 @@ class Orchestrator():
             """,
         )
 
-        #Add function calling agent to the available agents
-        self.available_agents["function_calling_agent"] = function_calling_agent
+        available_agents.append(function_calling_agent)
+        self.available_agents = {agent.name: agent for agent in available_agents}
 
 
         self.parsers = {
@@ -112,7 +111,7 @@ class Orchestrator():
             """,
         )
 
-        result_json = None
+        result_json = {}
         previous_agent = None
         previous_instruction = None
 
