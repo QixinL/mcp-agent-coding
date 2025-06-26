@@ -9,16 +9,63 @@ from orchestrator import Orchestrator
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from mcp_agent.workflows.llm.augmented_llm_google import GoogleAugmentedLLM
 
+import sys
+
 # Settings can either be specified programmatically,
 # or loaded from mcp_agent.config.yaml/mcp_agent.secrets.yaml
 app = MCPApp(name="mcp_basic_agent")
 
+#TODO put into utils
+def create_python_file(file_content, file_name):
+    """
+    Create a Python file with the given file_content and file_name.
+    The file will be created in the current working directory.
+    """
+    with open(file_name, "w") as f:
+        f.write(file_content)
+    print(f"Python file '{file_name}' created successfully.")
+    return file_name
+
+#TODO put into utils
+def execute_python_file(file_name):
+    """
+    Execute a Python file with the given file_name.
+    The file should be in the current working directory.
+    """
+    import subprocess
+    try:
+        result = subprocess.run([sys.executable, file_name], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout
+        else:
+            return f"Error executing file: {result.stderr}"
+    except Exception as e:
+        print(f"Error executing Python file '{file_name}': {e}")
+        return str(e)
+    
+def obtain_csv_header(file_name):
+    """
+    Obtain the header of a CSV file.
+    This function assumes that the file is in the current working directory.
+    """
+    import csv
+    import os
+
+    if not os.path.exists(file_name):
+        return f"File '{file_name}' does not exist."
+
+    with open(file_name, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        header = next(reader)  # Get the first row as header
+        return header
+
+#TODO put into utils
+#def obtain header
+
+
 async def example_usage():
     async with app.run() as agent_app:
-        logger = agent_app.logger
         context = agent_app.context
-
-        # logger.info("Current config:", data=context.config.model_dump())
 
         # Add the current directory to the filesystem server's args
         context.config.mcp.servers["filesystem"].args.extend([os.getcwd()])
@@ -35,35 +82,43 @@ async def example_usage():
 
         coder_agent = Agent(
             name="coder",
-            instruction="""Your job is to determine if code is needed to solve the user's request.
-            If code is needed, write python code to solve the user's request and return the code in the 
-            code section of the JSON formatting that will be provided.
+            instruction=""" Output a JSON object with the following fields:
+            result: the code that solves the user's request (you need to generate the code)
+            summary: a concise summary of the code and its purpose
             Ensure that:
-            - The code can be executed directly in the current working directory and does not have ```python headers and footers.
+            - The code can be executed directly in the current working directory.
             - The code has no syntax or runtime errors.
-            After, return the path to the python file relative to the current working directory.""",
-            # server_names=[],
+            """,
         )
 
-        executor_agent = Agent(
-            name="executor",
-            instruction="""Determine if the code has been properly executed and return the output/error.""",
-            server_names=["filesystem"],
+        summary_agent = Agent(
+            name="summary",
+            instruction="""You are an agent that summarizes the result of the execution.
+            Your job is to summarize the result of the execution and return it in a JSON format.
+            Ensure that:
+            - The summary is concise and contains only the necessary information.
+            Ensure that the output follows the JSON format that will be provided.""",
         )
 
-        task = """Obtain the number of lines in the file short_story.md"""
+        task = """Make a graph of the revenue per month from the CSV file 'examples/company1_sales_new.csv'. 
+        Save the graph as 'revenue_graph.png' in the current working directory."""
 
         orchestrator = Orchestrator(
             augumented_llm=GoogleAugmentedLLM,
             available_agents=[
-                finder_agent,
-                coder_agent,
-                executor_agent,
+                # finder_agent,
+                # summary_agent,
+                # coder_agent,
+            ],
+            available_functions=[
+                create_python_file,
+                execute_python_file,
+                obtain_csv_header,
             ],
         )
 
         result = await orchestrator.generate_str(user_query=task)
-        # logger.info(f"{result}")
+
 
 if __name__ == "__main__":
     start = time.time()
@@ -72,3 +127,6 @@ if __name__ == "__main__":
     t = end - start
 
     print(f"Total run time: {t:.2f}s")
+    
+    sys.stdout = open(os.devnull, 'w')  # Suppress stdout
+    sys.stderr = open(os.devnull, 'w')  # Suppress stderr
