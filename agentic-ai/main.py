@@ -100,7 +100,8 @@ async def example_usage():
             Ensure that the output follows the JSON format that will be provided.""",
         )
 
-        task = """What is the number of items sold for more than $500 in electronic_sales.csv?"""
+        task = """Make a graph of the revenue per month from the CSV file 'examples/company1_sales_new.csv'. 
+        Save the graph as 'revenue_graph.png' in the current working directory."""
 
         orchestrator = Orchestrator(
             augumented_llm=GoogleAugmentedLLM,

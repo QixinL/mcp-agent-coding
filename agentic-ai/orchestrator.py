@@ -19,10 +19,9 @@ class Schema(BaseModel):
 
 
 class OrchestratorSchema(BaseModel):
-    finished: bool = Field(..., description="True if the orchestration is complete or there is an error, False if the orchestration should continue")
+    finished: bool = Field(..., description="True if the orchestration is complete and no more agents need to be called, False otherwise")
     agent:  Optional[str] = Field(None, description="The name of the agent that should perform the next step")
     instruction: Optional[str] = Field(None, description="The instruction for the agent to perform the next step")
-    context: Optional[str] = Field(None, description="A summary of the most important information gathered from the last agent's output. Use less than 10 words")
 
 
 class FunctionCall(BaseModel):
@@ -135,7 +134,7 @@ class Orchestrator():
             previous agent summary: {result_json.get("summary") if result_json else "N/A"}
             
             Return in a JSON object with the following fields:
-            - finished: True if the orchestration is complete, False if the orchestration should continue
+            - finished: True if the orchestration is complete and no more agents need to be called, False otherwise
             - agent: the name of the agent that should perform the next step (review the plan when deciding this agent)
             here is the list of available agents: {self.available_agents.keys()} and the functions available to the function calling agent: {self.available_functions}
             - instruction: the instruction for the agent to perform the next step (Answer to the user query if finished)
@@ -150,7 +149,7 @@ class Orchestrator():
             """
             
             raw = await orchestrator_llm.generate_str(prompt)
-            print(f"\nOrchestrator response: {raw}")
+            print(f"\nOrchestrator response: {raw}\n")
             next_step = self.parsers["orchestrator"].parse(raw)
             next_step_json = next_step.model_dump()
 
